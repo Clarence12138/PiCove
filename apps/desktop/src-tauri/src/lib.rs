@@ -10,6 +10,7 @@ mod pi_host;
 mod pi_host_tests;
 mod shell_terminal;
 mod system_tray;
+mod window_state;
 
 use desktop_settings::DesktopSettingsStore;
 use draft_store::DraftStore;
@@ -40,8 +41,29 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .on_page_load(|webview, payload| {
+            #[cfg(target_os = "windows")]
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Finished
+                && windows_version::OsVersion::current().build < 22_000
+            {
+                let _ = webview.eval("document.documentElement.dataset.windowMaterial = 'opaque';");
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = (webview, payload);
+            }
+        })
         .setup(|app| {
             system_tray::install(app)?;
+
+            #[cfg(target_os = "windows")]
+            if windows_version::OsVersion::current().build < 22_000 {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_effects(None::<tauri::utils::config::WindowEffectsConfig>);
+                }
+            }
 
             let mut settings = DesktopSettingsStore::load(app.handle())?;
             settings.ensure_default_project_workspace()?;
@@ -147,8 +169,10 @@ pub fn run() {
                 });
             });
 
+            window_state::restore_and_track(app.handle())?;
             Ok(())
         })
+        .on_window_event(window_state::on_window_event)
         .invoke_handler(tauri::generate_handler![
             fonts::desktop_fonts_list,
             fonts::desktop_fonts_import,
@@ -213,6 +237,7 @@ pub fn run() {
                 }
             }
             tauri::RunEvent::Exit => {
+                window_state::save(app_handle);
                 system_tray::remove(app_handle);
                 let handle = app_handle.clone();
                 tauri::async_runtime::block_on(async move {
