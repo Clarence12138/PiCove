@@ -19,6 +19,7 @@ import { Dialog } from "../components/Dialog";
 import { ExtensionUiModal } from "../features/chat/ExtensionUiModal";
 import { GlobalSearchHost } from "../features/sessions/GlobalSearchModal";
 import { WorkspaceSwitchTransition } from "../features/workspaces/WorkspaceSwitchTransition";
+import { navigateToWorkspace } from "../features/workspaces/workspace-navigation";
 import { applyTheme } from "../lib/theme";
 import { applyAppearancePreferences } from "../lib/appearance-preferences";
 import { groupTimedAgentEventsBySession } from "../lib/chat/transcript-drafts";
@@ -27,15 +28,8 @@ import { classifyToolSnapshot } from "../lib/stores/tool-revision";
 import { expectedIdentityForEvent, extensionUiRequestDelivery } from "./event-identity";
 import { observeExtensionUiHostEvent } from "../lib/extension-ui-observation";
 import { publishValidatedHostEvent } from "../lib/bridge/validated-host-events";
-import {
-  mergeHostIdentity,
-  nullableSessionContext,
-  workspaceContext,
-} from "../lib/bridge/host-context";
-import {
-  requestSessionOpenWithRetry,
-  SESSION_OPEN_TIMEOUT_MS,
-} from "../lib/bridge/session-open-request";
+import { mergeHostIdentity, nullableSessionContext } from "../lib/bridge/host-context";
+import { requestSessionOpenWithRetry } from "../lib/bridge/session-open-request";
 import { summarizeHostFailure } from "../lib/host-failure-message";
 import { getAppVersion } from "../lib/app-version";
 import { checkForAppUpdate } from "../lib/updater";
@@ -129,90 +123,12 @@ function waitForNativeFullscreenSettle(): Promise<void> {
 async function openSystemNotificationTarget(target: SystemNotificationTarget): Promise<void> {
   const initial = useAppStore.getState();
   initial.setPage("chat");
-  let host = initial.host;
-  if (!host) return;
-
-  if (target.workspacePath && initial.workspace?.canonicalCwd !== target.workspacePath) {
-    const switched = await hostClient.request(
-      "workspace.setCurrent",
-      workspaceContext(host, initial.workspace),
-      { cwd: target.workspacePath },
-      60_000,
-    );
-    if (!switched.ok) {
-      useAppStore
-        .getState()
-        .pushNotification(switched.error?.message ?? tCurrent("notifSetWorkspaceFailed"), "error");
-      return;
-    }
-    const result = switched.result;
-    const current = useAppStore.getState();
-    if (
-      current.workspace?.id !== result.workspace.id ||
-      current.workspace.revision !== result.workspace.revision
-    ) {
-      current.setWorkspace(result.workspace);
-    }
-    if (result.session) {
-      const active = useAppStore.getState().session;
-      if (
-        active?.sessionId !== result.session.sessionId ||
-        active.revision !== result.session.revision
-      ) {
-        useAppStore.getState().applySessionSnapshot(result.session);
-      }
-    }
-    host = useAppStore.getState().host;
-    if (host) {
-      useAppStore.getState().setHost({
-        ...host,
-        workspaceId: switched.workspaceId,
-        workspaceRevision: switched.workspaceRevision,
-        sessionId: switched.sessionId,
-        sessionRevision: switched.sessionRevision,
-        packageRevision: switched.packageRevision,
-      });
-    }
-  }
-
-  if (!target.sessionPath || !host) return;
-  const sessionPath = target.sessionPath;
-  if (useAppStore.getState().session?.sessionPath === sessionPath) return;
-  const opened = await requestSessionOpenWithRetry(() => {
-    const current = useAppStore.getState();
-    if (!current.host || !current.workspace) {
-      throw new Error(tCurrent("notifOpenSessionFailed"));
-    }
-    return hostClient.request(
-      "session.open",
-      {
-        expectedHostInstanceId: current.host.hostInstanceId,
-        expectedWorkspaceId: current.workspace.id,
-        expectedWorkspaceRevision: current.workspace.revision,
-        expectedSessionId: current.host.sessionId,
-        expectedSessionRevision: current.host.sessionRevision,
-      },
-      { sessionPath },
-      SESSION_OPEN_TIMEOUT_MS,
-    );
+  const cwd = target.workspacePath ?? initial.workspace?.canonicalCwd;
+  if (!cwd) return;
+  await navigateToWorkspace({
+    cwd,
+    ...(target.sessionPath ? { sessionPath: target.sessionPath } : {}),
   });
-  if (!opened) return;
-  if (!opened.ok) {
-    useAppStore
-      .getState()
-      .pushNotification(opened.error?.message ?? tCurrent("notifOpenSessionFailed"), "error");
-    return;
-  }
-  const current = useAppStore.getState();
-  if (
-    current.session?.sessionId !== opened.result.sessionId ||
-    current.session.revision !== opened.result.revision
-  ) {
-    current.applySessionSnapshot(opened.result);
-  }
-  const latestHost = useAppStore.getState().host;
-  const nextHost = latestHost ? mergeHostIdentity(latestHost, opened) : null;
-  if (nextHost) useAppStore.getState().setHost(nextHost);
 }
 
 function SettingsOverlay({ section }: { section: SettingsSection }) {
@@ -1037,27 +953,16 @@ export function App() {
                     ? configuredSettings.lastSessionPath
                     : undefined;
                   if (!status.workspaceId && configuredWorkspace) {
-                    const selected = await hostClient.request(
-                      "workspace.setCurrent",
-                      {
-                        expectedHostInstanceId: status.hostInstanceId,
-                        expectedWorkspaceId: null,
-                        expectedWorkspaceRevision: status.workspaceRevision,
-                      },
+                    const selected = await navigateToWorkspace(
                       { cwd: configuredWorkspace },
-                      180_000,
+                      { recovery: true },
                     );
-                    if (!selected.ok) {
-                      throw new Error(selected.error.message);
+                    if (selected.status === "failed") {
+                      throw new Error(selected.message);
                     }
-                    useAppStore.getState().setHost({
-                      ...status,
-                      workspaceId: selected.workspaceId,
-                      workspaceRevision: selected.workspaceRevision,
-                      sessionId: selected.sessionId,
-                      sessionRevision: selected.sessionRevision,
-                      packageRevision: selected.packageRevision,
-                    });
+                    if (selected.status === "cancelled") {
+                      throw new Error("Workspace switch cancelled");
+                    }
                   }
                   const recovered = await runFullRehydrate(
                     status.hostInstanceId,

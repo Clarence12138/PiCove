@@ -256,7 +256,7 @@ function fileSortKey(
 }
 
 export function Composer({
-  disabled,
+  disabled: disabledProp,
   welcomeWorkspaceName,
 }: {
   disabled?: boolean;
@@ -267,6 +267,8 @@ export function Composer({
   const host = useAppStore((s) => s.host);
   const workspace = useAppStore((s) => s.workspace);
   const session = useAppStore((s) => s.session);
+  const workspaceSwitchTarget = useAppStore((s) => s.workspaceSwitchTarget);
+  const disabled = disabledProp || workspaceSwitchTarget !== null;
   const busySendBehavior = useAppStore((s) => s.desktopSettings?.busySendBehavior);
   const extensionUiRequest = useAppStore((s) => s.extensionUiRequest);
   const extensionDecisionGroups = useAppStore((s) => s.extensionDecisionGroups);
@@ -1071,6 +1073,7 @@ export function Composer({
 
   async function send() {
     if (!host || !workspace || !session || !draftTarget || disabled || decisionBlocked) return;
+    if (useAppStore.getState().workspaceSwitchTarget !== null) return;
     if (
       documents.some((document) => document.status !== "ready") ||
       (!text.trim() && images.length === 0 && files.length === 0 && documents.length === 0)

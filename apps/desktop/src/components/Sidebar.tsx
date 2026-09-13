@@ -65,6 +65,7 @@ function persistWorkspacePaneHeight(height: number | null): void {
 function NewSessionButton() {
   const t = useT();
   const workspace = useAppStore((s) => s.workspace);
+  const switchTarget = useAppStore((s) => s.workspaceSwitchTarget);
   const [pending, setPending] = useState(isCreateSessionPending);
   useEffect(() => subscribeCreateSessionPending(setPending), []);
 
@@ -72,7 +73,7 @@ function NewSessionButton() {
     <button
       type="button"
       onClick={() => void createNewSession()}
-      disabled={!workspace?.servicesReady || pending}
+      disabled={!workspace?.servicesReady || pending || switchTarget !== null}
       className="theme-sidebar-primary interface-density-primary-row flex h-10 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm font-medium transition-colors hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-40"
     >
       <MessageCirclePlus size={18} className="shrink-0" />

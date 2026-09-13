@@ -199,9 +199,18 @@ describe("GlobalSearchModal", () => {
         return Promise.resolve(envelope(method, searchReport()));
       }
       if (method === "session.open") {
-        return Promise.resolve(
-          envelope(method, session({ sessionId: FOUND_SESSION_ID, revision: 1 })),
-        );
+        return Promise.resolve({
+          ...envelope(
+            method,
+            session({
+              sessionId: FOUND_SESSION_ID,
+              sessionPath: "/sessions/current/found.jsonl",
+              revision: 4,
+            }),
+          ),
+          sessionId: FOUND_SESSION_ID,
+          sessionRevision: 4,
+        });
       }
       throw new Error(`Unexpected method: ${method}`);
     }) as never);
@@ -215,6 +224,7 @@ describe("GlobalSearchModal", () => {
     const methods = request.mock.calls.map((call) => call[0]);
     expect(methods).toContain("session.open");
     expect(methods).not.toContain("workspace.setCurrent");
+    expect(useAppStore.getState().session?.sessionPath).toBe("/sessions/current/found.jsonl");
   });
 
   it("switches workspace before handling a result from another project", async () => {
@@ -224,17 +234,21 @@ describe("GlobalSearchModal", () => {
         return Promise.resolve(envelope(method, searchReport()));
       }
       if (method === "workspace.setCurrent") {
-        return Promise.resolve(
-          envelope(method, {
+        return Promise.resolve({
+          ...envelope(method, {
             workspace: {
               id: OTHER_WORKSPACE_ID,
               cwd: "/proj/other",
               canonicalCwd: "/proj/other",
-              revision: 1,
+              revision: 2,
               servicesReady: true,
             },
           }),
-        );
+          workspaceId: OTHER_WORKSPACE_ID,
+          workspaceRevision: 2,
+          sessionId: null,
+          sessionRevision: 0,
+        });
       }
       throw new Error(`Unexpected method: ${method}`);
     }) as never);
@@ -255,5 +269,27 @@ describe("GlobalSearchModal", () => {
     const methods = request.mock.calls.map((call) => call[0]);
     expect(methods).not.toContain("session.open");
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(useAppStore.getState().workspace?.canonicalCwd).toBe("/proj/other");
+  });
+
+  it("closes on an open failure so the shared retry action is visible", async () => {
+    const onClose = vi.fn();
+    vi.spyOn(hostClient, "request").mockImplementation(((method: string) => {
+      if (method === "session.searchAll") return Promise.resolve(envelope(method, searchReport()));
+      return Promise.resolve({
+        ...envelope(method, null),
+        ok: false,
+        error: { code: "SESSION_NOT_FOUND", message: "Session unavailable", retryable: false },
+      });
+    }) as never);
+    render(<GlobalSearchModal onClose={onClose} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Search conversations in every project…"), "login");
+    await user.click(await screen.findByTitle("Fix login flow"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(useAppStore.getState().workspaceSwitchError).toEqual({
+      target: { cwd: "/proj/current", sessionPath: "/sessions/current/found.jsonl" },
+      message: "Session unavailable",
+    });
   });
 });

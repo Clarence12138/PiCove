@@ -25,6 +25,7 @@ import { tCurrent, useT } from "../../lib/i18n/use-t";
 import { useAppStore } from "../../lib/stores/app-store";
 import { deriveExtensionUiWaitingBySession } from "../../lib/stores/extension-ui-state";
 import { hostClient } from "../../lib/bridge/host-client";
+import { requestWithRetry } from "../../lib/bridge/request-retry";
 import { persistDesktopSettings } from "../../lib/desktop-settings";
 import {
   prioritizePinnedSessions,
@@ -167,9 +168,25 @@ export function SessionList({
     const expectedWorkspaceId = currentWorkspace.id;
     const expectedWorkspaceRevision = currentWorkspace.revision;
     try {
-      const res = await requestSessionRpcWithRetry(() =>
-        hostClient.request("session.list", workspaceContext(currentHost, currentWorkspace), null),
+      const res = await requestWithRetry(
+        () =>
+          hostClient.request("session.list", workspaceContext(currentHost, currentWorkspace), null),
+        undefined,
+        () => {
+          const latest = useAppStore.getState();
+          return (
+            request === refreshRequest.current &&
+            latest.workspaceSwitchTarget === null &&
+            latest.host?.hostInstanceId === expectedHostId &&
+            latest.workspace?.id === expectedWorkspaceId &&
+            latest.workspace.revision === expectedWorkspaceRevision &&
+            !latest.connecting &&
+            !latest.rehydrating &&
+            !latest.desynchronized
+          );
+        },
       );
+      if (!res) return;
       const current = useAppStore.getState();
       if (
         request !== refreshRequest.current ||

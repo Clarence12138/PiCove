@@ -39,7 +39,13 @@ export function abortMethodForSession(session: {
 
 export async function createNewSession(): Promise<boolean> {
   const state = useAppStore.getState();
-  if (!state.host || !state.workspace?.servicesReady || createPending) return false;
+  if (
+    !state.host ||
+    !state.workspace?.servicesReady ||
+    createPending ||
+    state.workspaceSwitchTarget !== null
+  )
+    return false;
   const generation = captureRequestGeneration(state.host);
   setCreatePending(true);
   try {

@@ -175,6 +175,7 @@ describe("Composer managed documents", () => {
     useAppStore.getState().setWorkspace(workspace());
     useAppStore.getState().applySessionSnapshot(session());
     useAppStore.setState({
+      workspaceSwitchTarget: null,
       draftTexts: {},
       draftTargets: {},
       draftEditVersions: {},
@@ -186,6 +187,22 @@ describe("Composer managed documents", () => {
     vi.restoreAllMocks();
     cleanup();
     delete (navigator as { clipboard?: Clipboard }).clipboard;
+  });
+
+  it("blocks send during workspace navigation and restores the untouched draft afterwards", async () => {
+    const request = vi.spyOn(hostClient, "request");
+    const user = userEvent.setup();
+    render(<Composer />);
+    const textarea = screen.getByRole("textbox");
+    await user.type(textarea, "Keep this draft");
+    act(() => useAppStore.getState().setWorkspaceSwitchTarget("/other-workspace"));
+    expect(textarea).toBeDisabled();
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(request).not.toHaveBeenCalledWith("agent.prompt", expect.anything(), expect.anything());
+    expect(textarea).toHaveValue("Keep this draft");
+    act(() => useAppStore.getState().setWorkspaceSwitchTarget(null));
+    expect(textarea).toBeEnabled();
+    expect(textarea).toHaveValue("Keep this draft");
   });
 
   it("refreshes parsing state, gates send, and submits only the attachment ID", async () => {

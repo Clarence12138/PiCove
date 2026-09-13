@@ -151,6 +151,25 @@ describe("SessionList menu", () => {
     cleanup();
     closeContextMenu();
     vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("stops retrying an obsolete list read when workspace navigation starts", async () => {
+    vi.useFakeTimers();
+    const request = vi.mocked(hostClient.request).mockResolvedValue({
+      ok: false,
+      error: { code: "SERVICE_GRAPH_BUSY", message: "busy", retryable: true },
+    } as never);
+    render(<SessionList />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(request.mock.calls.filter(([method]) => method === "session.list")).toHaveLength(1);
+    act(() => useAppStore.getState().setWorkspaceSwitchTarget("/next"));
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(request.mock.calls.filter(([method]) => method === "session.list")).toHaveLength(1);
+    request.mockResolvedValue({ ok: true, result: { items: [summary] } } as never);
+    act(() => useAppStore.getState().setWorkspaceSwitchTarget(null));
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(request.mock.calls.filter(([method]) => method === "session.list")).toHaveLength(2);
   });
 
   it("portals the fixed menu out of the transformed collapsible region", () => {

@@ -337,6 +337,11 @@ export type AppState = EpochState & {
   /** Requested cwd while a workspace switch is in flight; drives switch feedback UI. */
   workspaceSwitchTarget: string | null;
   setWorkspaceSwitchTarget: (target: string | null) => void;
+  workspaceSwitchError: {
+    target: { cwd: string; sessionPath?: string };
+    message: string;
+  } | null;
+  setWorkspaceSwitchError: (error: AppState["workspaceSwitchError"]) => void;
   markDesynchronized: (reason: string) => void;
   noteSequence: (sequence: number) => "apply" | "drop" | "gap";
   completeRehydrate: (snap: {
@@ -492,6 +497,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = epochBeginHost(epochSlice(get()), host);
     set({
       ...next,
+      workspaceSwitchError: null,
       extensionUiRequest: null,
       extensionUiQueue: [],
       extensionDecisionGroups: {},
@@ -1173,6 +1179,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setRehydrating: (rehydrating) => set({ rehydrating }),
   workspaceSwitchTarget: null,
   setWorkspaceSwitchTarget: (workspaceSwitchTarget) => set({ workspaceSwitchTarget }),
+  workspaceSwitchError: null,
+  setWorkspaceSwitchError: (workspaceSwitchError) => set({ workspaceSwitchError }),
 
   markDesynchronized: (reason) => {
     const next = epochMarkDesync(epochSlice(get()), reason);

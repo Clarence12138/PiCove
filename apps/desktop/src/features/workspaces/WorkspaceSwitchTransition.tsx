@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { X } from "lucide-react";
 import { useAppStore } from "../../lib/stores/app-store";
 import { useT } from "../../lib/i18n/use-t";
 import { workspaceDisplayName } from "./WorkspacePicker";
+import { navigateToWorkspace } from "./workspace-navigation";
 
-const SKELETON_UNMOUNT_DELAY_MS = 200;
+const LOADING_DELAY_MS = 180;
 
 function SkeletonBlock({ className }: { className: string }) {
   return (
@@ -19,46 +21,53 @@ function SkeletonBlock({ className }: { className: string }) {
  */
 export function WorkspaceSwitchTransition({ children }: { children: ReactNode }) {
   const target = useAppStore((s) => s.workspaceSwitchTarget);
+  const failure = useAppStore((s) => s.workspaceSwitchError);
+  const contentKey = useAppStore(
+    (s) =>
+      `${s.workspace?.id}:${s.workspace?.revision}:${s.session?.sessionId}:${s.session?.revision}`,
+  );
   const t = useT();
   const switching = target !== null;
-  const [skeletonPresent, setSkeletonPresent] = useState(switching);
-  const [lastTarget, setLastTarget] = useState(target);
-  if (target !== null && target !== lastTarget) setLastTarget(target);
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const [settledContentKey, setSettledContentKey] = useState(contentKey);
+  if (!switching && contentKey !== settledContentKey) setSettledContentKey(contentKey);
 
   useEffect(() => {
-    if (switching) {
-      setSkeletonPresent(true);
+    if (!switching) {
+      setShowSkeleton(false);
       return;
     }
-    const timer = window.setTimeout(() => setSkeletonPresent(false), SKELETON_UNMOUNT_DELAY_MS);
+    const timer = window.setTimeout(() => setShowSkeleton(true), LOADING_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [switching]);
+
+  // Brief contention keeps the old content visible but inert. Hide committed
+  // intermediate destinations until the last requested destination settles.
+  const intermediateContent = switching && contentKey !== settledContentKey;
+  const hideContent = switching && (showSkeleton || intermediateContent);
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         className={`flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-150 ease-out motion-reduce:transition-none ${
-          switching ? "pointer-events-none opacity-0" : "opacity-100"
+          hideContent ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
         aria-hidden={switching || undefined}
         inert={switching || undefined}
+        style={intermediateContent ? { visibility: "hidden" } : undefined}
       >
         {children}
       </div>
-      {skeletonPresent && (
+      {switching && showSkeleton && (
         <div
           role="status"
           aria-live="polite"
-          className={`workspace-switch-skeleton absolute inset-0 z-30 flex flex-col bg-surface transition-opacity duration-150 ease-out motion-reduce:transition-none ${
-            switching ? "opacity-100" : "pointer-events-none opacity-0"
-          }`}
+          className="workspace-switch-skeleton absolute inset-0 z-30 flex flex-col bg-surface"
         >
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
             <SkeletonBlock className="h-4 w-40" />
             <span className="text-xs text-muted">
-              {lastTarget !== null
-                ? t("workspacesSwitchingTo", { name: workspaceDisplayName(lastTarget) })
-                : null}
+              {t("workspacesSwitchingTo", { name: workspaceDisplayName(target) })}
             </span>
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-6">
@@ -70,6 +79,34 @@ export function WorkspaceSwitchTransition({ children }: { children: ReactNode })
           <div className="shrink-0 px-6 pb-6">
             <SkeletonBlock className="h-20 w-full rounded-xl" />
           </div>
+        </div>
+      )}
+      {!switching && failure && (
+        <div
+          role="alert"
+          className="absolute inset-x-4 bottom-4 z-30 flex items-start gap-3 rounded-lg border border-warning/40 bg-surface-raised p-3 shadow-lg"
+        >
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-medium">
+              {t("workspacesOpenFailed", { name: workspaceDisplayName(failure.target.cwd) })}
+            </p>
+            <p className="mt-1 text-muted">{failure.message}</p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-md border border-border px-2.5 py-1 text-sm hover:bg-surface-overlay"
+            onClick={() => void navigateToWorkspace(failure.target)}
+          >
+            {t("workspacesRetry")}
+          </button>
+          <button
+            type="button"
+            aria-label={t("commonClose")}
+            className="rounded-md p-1 text-muted hover:bg-surface-overlay"
+            onClick={() => useAppStore.getState().setWorkspaceSwitchError(null)}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { ChevronDown, Folder, FolderPlus, LoaderCircle, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { SessionSnapshot } from "@pideck/protocol";
 import { CollapsibleRegion } from "../../components/CollapsibleRegion";
 import { sessionStatusDotClass } from "../sessions/session-list-policy";
@@ -9,17 +9,12 @@ import {
   type SessionCatalogState,
   type SessionRuntimeState,
 } from "../../lib/stores/session-catalog";
-import { hostClient } from "../../lib/bridge/host-client";
 import {
   notifyDesktopSettingsSaveFailure,
   persistDesktopSettings,
 } from "../../lib/desktop-settings";
 import { useT } from "../../lib/i18n/use-t";
-import {
-  captureRequestGeneration,
-  isCurrentRequestGeneration,
-  workspaceContext,
-} from "../../lib/bridge/host-context";
+import { navigateToWorkspace } from "./workspace-navigation";
 
 export function workspaceDisplayName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? "Workspace";
@@ -122,11 +117,12 @@ export function WorkspacePicker({
   const transcriptDrafts = useAppStore((s) => s.transcriptDrafts);
   const knownWorkspaces = useAppStore((s) => s.desktopSettings?.knownWorkspaces ?? NO_WORKSPACES);
   const switchTarget = useAppStore((s) => s.workspaceSwitchTarget);
-  const setWorkspace = useAppStore((s) => s.setWorkspace);
-  const setSession = useAppStore((s) => s.setSession);
-  const pushNotification = useAppStore((s) => s.pushNotification);
-  const [pending, setPending] = useState(false);
-  const requestRef = useRef(0);
+  const connecting = useAppStore((s) => s.connecting);
+  const rehydrating = useAppStore((s) => s.rehydrating);
+  const desynchronized = useAppStore((s) => s.desynchronized);
+  const hostFatal = useAppStore((s) => s.hostFatal);
+  const [picking, setPicking] = useState(false);
+  const unavailable = !host || connecting || rehydrating || desynchronized || Boolean(hostFatal);
 
   const currentCwd = workspace?.canonicalCwd ?? null;
   const requestedCwd = workspace?.cwd ?? null;
@@ -147,74 +143,9 @@ export function WorkspacePicker({
     }).catch(notifyDesktopSettingsSaveFailure);
   }, [currentCwd, knownWorkspaces, requestedCwd]);
 
-  async function switchTo(cwd: string) {
-    if (!host || pending) return;
-    if (currentCwd && samePath(currentCwd, cwd)) return;
-
-    const request = ++requestRef.current;
-    const generation = captureRequestGeneration(host);
-    setPending(true);
-    useAppStore.getState().setWorkspaceSwitchTarget(cwd);
-    try {
-      const res = await hostClient.request(
-        "workspace.setCurrent",
-        workspaceContext(host, workspace),
-        { cwd },
-        60_000,
-      );
-
-      if (
-        request !== requestRef.current ||
-        !isCurrentRequestGeneration(useAppStore.getState().host, generation)
-      ) {
-        return;
-      }
-      if (!res.ok) {
-        pushNotification(res.error?.message ?? t("notifSetWorkspaceFailed"), "error");
-        return;
-      }
-
-      const result = res.result;
-      // workspace.changed / session.snapshot events land before this response
-      // resolves; re-applying identical snapshots re-renders the chat and
-      // sidebar a second time. Apply only what the event stream has not.
-      const appliedWorkspace = useAppStore.getState().workspace;
-      if (
-        appliedWorkspace === null ||
-        appliedWorkspace.id !== result.workspace.id ||
-        appliedWorkspace.revision !== result.workspace.revision
-      ) {
-        setWorkspace(result.workspace);
-      }
-      const responseSession = result.session;
-      if (responseSession) {
-        const appliedSession = useAppStore.getState().session;
-        if (
-          appliedSession === null ||
-          appliedSession.sessionId !== responseSession.sessionId ||
-          appliedSession.revision !== responseSession.revision
-        ) {
-          setSession(responseSession);
-        }
-      }
-      useAppStore.getState().setHost({
-        ...host,
-        workspaceId: res.workspaceId,
-        workspaceRevision: res.workspaceRevision,
-        sessionId: res.sessionId,
-        sessionRevision: res.sessionRevision,
-        packageRevision: res.packageRevision,
-      });
-    } finally {
-      if (request === requestRef.current) {
-        setPending(false);
-        useAppStore.getState().setWorkspaceSwitchTarget(null);
-      }
-    }
-  }
-
   async function pickAndAdd() {
-    if (!host || pending) return;
+    if (unavailable || picking) return;
+    setPicking(true);
     let cwd: string | null = null;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -222,9 +153,11 @@ export function WorkspacePicker({
       if (typeof selected === "string") cwd = selected;
     } catch {
       cwd = window.prompt(t("workspacesEnterPath")) || null;
+    } finally {
+      setPicking(false);
     }
     if (!cwd) return;
-    await switchTo(cwd);
+    await navigateToWorkspace({ cwd });
   }
 
   function removeFromList(path: string) {
@@ -258,7 +191,7 @@ export function WorkspacePicker({
         <button
           type="button"
           onClick={() => void pickAndAdd()}
-          disabled={!host || pending}
+          disabled={unavailable || picking}
           className="flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-overlay hover:text-foreground disabled:opacity-40"
           title={t("workspacesAdd")}
           aria-label={t("workspacesAdd")}
@@ -272,16 +205,18 @@ export function WorkspacePicker({
             <button
               type="button"
               onClick={() => void pickAndAdd()}
-              disabled={!host || pending}
+              disabled={unavailable || picking}
               className="interface-density-nav-row flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm text-muted transition-colors hover:bg-surface-overlay hover:text-foreground disabled:opacity-40"
             >
               <FolderPlus size={16} />
-              <span>{pending ? t("workspacesOpening") : t("workspacesAdd")}</span>
+              <span>{picking ? t("workspacesOpening") : t("workspacesAdd")}</span>
             </button>
           ) : (
             <ul className="flex flex-col gap-0.5">
               {listed.map((path) => {
                 const active = Boolean(currentCwd && samePath(currentCwd, path));
+                const requested = switchTarget !== null && samePath(switchTarget, path);
+                const selected = switchTarget !== null ? requested : active;
                 const liveRuntime = workspaceLiveRuntimeState({
                   path,
                   workspace,
@@ -294,26 +229,28 @@ export function WorkspacePicker({
                   <li
                     key={path}
                     className={`interface-density-nav-row group flex h-9 items-center rounded-md text-[13px] ${
-                      active ? "bg-surface-overlay font-medium" : "hover:bg-surface-overlay/70"
+                      selected ? "bg-surface-overlay font-medium" : "hover:bg-surface-overlay/70"
                     }`}
                   >
                     <button
                       type="button"
-                      onClick={() => void switchTo(path)}
-                      disabled={!host || pending || active}
+                      onClick={() => void navigateToWorkspace({ cwd: path })}
+                      disabled={unavailable || (active && switchTarget === null)}
                       className="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left disabled:cursor-default"
                       title={`${workspaceDisplayName(path)}\n${path}`}
                       aria-current={active ? "true" : undefined}
+                      aria-busy={requested || undefined}
                     >
-                      {pending && switchTarget !== null && samePath(switchTarget, path) ? (
+                      {requested ? (
                         <LoaderCircle size={16} className="shrink-0 animate-spin text-muted" />
                       ) : (
                         <Folder
                           size={16}
-                          className={`shrink-0 ${active ? "text-accent" : "text-muted"}`}
+                          className={`shrink-0 ${selected ? "text-accent" : "text-muted"}`}
                         />
                       )}
                       <span className="min-w-0 flex-1 truncate">{workspaceDisplayName(path)}</span>
+                      {requested && <span className="sr-only">{t("workspacesOpening")}</span>}
                       {liveDot ? (
                         <span
                           className={`size-1.5 shrink-0 rounded-full ${liveDot} ${
@@ -336,7 +273,7 @@ export function WorkspacePicker({
                       <button
                         type="button"
                         onClick={() => removeFromList(path)}
-                        disabled={pending}
+                        disabled={switchTarget !== null}
                         className="mr-1 hidden rounded p-1 text-muted hover:bg-surface hover:text-foreground group-hover:block"
                         title={t("workspacesRemoveTitle")}
                         aria-label={t("workspacesRemoveAria", { name: workspaceDisplayName(path) })}
