@@ -6,9 +6,20 @@
 > both macOS architectures. [P0 scope and verification](./operations/p0-scope.md)
 > is authoritative.
 
+## Long-term fork direction
+
+- **[Product goals and constraints](./product.md)** — 二开产品定位、非目标、Pi 兼容性目标和 AI 开发约束；不是当前能力或发布承诺。
+- **[Git development](./git-development.md)** — 分支管理与上游同步约定。
+
+Read the product direction before planning fork features. Existing architecture
+pages describe implementation or explicitly labelled target designs; the P0
+scope continues to define its own verification and release boundary. Report
+conflicts rather than silently changing either contract. Record significant
+approved decisions under `docs/decisions/` when needed.
+
 ## Layout
 
-Three folders:
+Three existing folders:
 
 - **[architecture/](./architecture/)** — how the system works: process topology, protocol, chat and Extension UI, packages, source map
 - **[operations/](./operations/)** — how to develop and release: dev setup, release pipeline, pre-release checklist, completion report
