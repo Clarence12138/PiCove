@@ -38,7 +38,7 @@ describe("session.list runtime metadata", () => {
         {
           id: BACKGROUND_SESSION_ID,
           path: "C:/sessions/background.jsonl",
-          name: "Background",
+          firstMessage: "历史会话的首条消息",
           cwd: "C:/workspace",
           modified: new Date(20),
           messageCount: 4,
@@ -57,6 +57,7 @@ describe("session.list runtime metadata", () => {
 
     expect(response).toHaveProperty("result");
     if (!("result" in response)) return;
+    expect(validateSuccessResult("session.list", response.result).ok).toBe(true);
     expect(response.result).toEqual({
       workspaceId: WORKSPACE_ID,
       items: [
@@ -67,6 +68,8 @@ describe("session.list runtime metadata", () => {
         }),
         expect.objectContaining({
           sessionId: BACKGROUND_SESSION_ID,
+          name: undefined,
+          firstMessage: "历史会话的首条消息",
           runtimeState: "running",
           sessionRevision: 3,
         }),
