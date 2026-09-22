@@ -43,13 +43,15 @@ function snapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
 
 describe("session catalog", () => {
   it("preserves the display excerpt when opening an unnamed historical session", () => {
-    const listed = replaceSessionCatalog(emptySessionCatalog(), "w1", [{
-      sessionId: "s1",
-      sessionPath: "C:/sessions/s1.jsonl",
-      cwd: "C:/workspace",
-      updatedAt: 1,
-      firstMessage: "历史首条消息",
-    }]);
+    const listed = replaceSessionCatalog(emptySessionCatalog(), "w1", [
+      {
+        sessionId: "s1",
+        sessionPath: "C:/sessions/s1.jsonl",
+        cwd: "C:/workspace",
+        updatedAt: 1,
+        firstMessage: "历史首条消息",
+      },
+    ]);
     const opened = upsertSessionSnapshot(listed, "w1", snapshot());
     expect(opened.entries.s1?.firstMessage).toBe("历史首条消息");
     expect(opened.entries.s1?.name).toBeUndefined();
