@@ -117,7 +117,7 @@ function listEntryFromSnapshot(snapshot: SessionSnapshot): ManagedSessionInfo | 
   } as ManagedSessionInfo;
 }
 
-function collectStartedLiveSessions(graph: WorkspaceGraph): ManagedSessionInfo[] {
+export function collectStartedLiveSessions(graph: WorkspaceGraph): ManagedSessionInfo[] {
   const entries: ManagedSessionInfo[] = [];
   if (graph.sessionSnapshot) {
     const entry = listEntryFromSnapshot(graph.sessionSnapshot);
@@ -130,7 +130,7 @@ function collectStartedLiveSessions(graph: WorkspaceGraph): ManagedSessionInfo[]
   return entries;
 }
 
-function mergeStartedLiveSessions(
+export function mergeStartedLiveSessions(
   factory: WorkspaceGraphFactory,
   disk: ManagedSessionInfo[],
   live: ManagedSessionInfo[],

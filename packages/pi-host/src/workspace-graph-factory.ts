@@ -157,12 +157,17 @@ export class WorkspaceGraphFactory {
   getSessionRuntimeInfo(
     sessionId: string,
     sessionPath: string,
+    graph?: WorkspaceGraph,
   ): { runtimeState: SessionRuntimeState; sessionRevision: number } | null {
-    return this.sessionRuntimeCache.getSessionRuntimeInfo(sessionId, sessionPath);
+    return this.sessionRuntimeCache.getSessionRuntimeInfo(sessionId, sessionPath, graph);
   }
 
   resolveSessionIdentity(sessionId: unknown, sessionRevision: unknown): HostIdentity | null {
     return this.sessionRuntimeCache.resolveSessionIdentity(sessionId, sessionRevision);
+  }
+
+  findWorkspaceGraph(canonicalCwd: string): WorkspaceGraph | null {
+    return this.workspaceLifecycle.findGraph(canonicalCwd);
   }
 
   canonicalizeCwd(cwd: string): string {

@@ -309,19 +309,22 @@ export class SessionRuntimeCache {
   getSessionRuntimeInfo(
     sessionId: string,
     sessionPath: string,
+    graph = this.context.getGraph(),
   ): { runtimeState: SessionRuntimeState; sessionRevision: number } | null {
-    const graph = this.context.getGraph();
     const server = this.context.getServer();
     if (!graph || !server) return null;
     if (
       graph.agentSession &&
       graph.sessionSnapshot &&
-      (server.identity.sessionId === sessionId ||
+      (graph.sessionSnapshot.sessionId === sessionId ||
         this.context.sessionPathsEqual(graph.sessionSnapshot.sessionPath, sessionPath))
     ) {
       return {
         runtimeState: this.runtimeStateForSession(graph.agentSession),
-        sessionRevision: server.identity.sessionRevision,
+        sessionRevision:
+          graph === this.context.getGraph()
+            ? server.identity.sessionRevision
+            : graph.sessionSnapshot.revision,
       };
     }
     const background =

@@ -17,7 +17,8 @@ import {
   resetFocusedExtensionFamily,
   resizeExtensionDockSplit,
 } from "../extension-ui-commands";
-import { abortCurrentAgent, createNewSession, isCreateSessionPending } from "./actions";
+import { abortCurrentAgent, isCreateSessionPending } from "./actions";
+import { createSessionInWorkspace } from "./workspace-navigation";
 import {
   requestDockCommand,
   requestGlobalSearchOpen,
@@ -53,7 +54,10 @@ export const appCommands: readonly AppCommand[] = [
     worksInTerminal: true,
     enabled: (state) =>
       Boolean(state.host && state.workspace?.servicesReady) && !isCreateSessionPending(),
-    run: createNewSession,
+    run: () => {
+      const cwd = useAppStore.getState().workspace?.canonicalCwd;
+      return cwd ? createSessionInWorkspace(cwd) : undefined;
+    },
   },
   {
     id: "app.openSettings",

@@ -327,6 +327,13 @@ export function validateRequestParams<M extends HostMethod>(
     case "package.updateAll":
     case "package.reloadResources":
       return params === null ? ok(null) : fail("params must be null", { method });
+    case "session.listForWorkspace":
+      return isPlainObject(params) &&
+        hasExactKeys(params, ["cwd"]) &&
+        isString(params.cwd) &&
+        params.cwd.trim().length > 0
+        ? ok(params)
+        : fail("invalid session.listForWorkspace params", { method });
     case "workspace.searchFiles":
       return exactObject(params, ["query"], ["limit"]) &&
         isString(params.query) &&

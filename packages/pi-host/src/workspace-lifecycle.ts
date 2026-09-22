@@ -115,6 +115,16 @@ export class WorkspaceLifecycle {
     return canonical;
   }
 
+  findGraph(canonicalCwd: string): WorkspaceGraph | null {
+    const current = this.context.getGraph();
+    if (
+      current &&
+      workspaceCanonicalPathsEqual(current.canonicalCwd, canonicalCwd, this.context.platform)
+    )
+      return current;
+    return this.retainedGraphs.get(this.retainedGraphKey(canonicalCwd)) ?? null;
+  }
+
   buildWorkspaceSnapshot(graph: WorkspaceGraph): WorkspaceSnapshot {
     return {
       id: graph.workspaceId,

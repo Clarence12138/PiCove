@@ -14,17 +14,6 @@ export function readPinnedSessionIds(workspaceId: string | null | undefined): st
   }
 }
 
-export function writePinnedSessionIds(workspaceId: string, sessionIds: string[]): void {
-  try {
-    globalThis.localStorage?.setItem(
-      `${SESSION_PINS_KEY_PREFIX}${workspaceId}`,
-      JSON.stringify([...new Set(sessionIds)]),
-    );
-  } catch {
-    /* ignore unavailable localStorage */
-  }
-}
-
 export function prioritizePinnedSessions<T extends { sessionId: string }>(
   items: T[],
   pinnedSessionIds: readonly string[],

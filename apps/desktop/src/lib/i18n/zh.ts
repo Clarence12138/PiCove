@@ -3,6 +3,18 @@ import type { MessageKey } from "./en";
 /** Simplified Chinese catalog. Typed against the English keys — a missing entry is a compile error. */
 export const zh: Record<MessageKey, string> = {
   // Common
+  projectRetry: "重试",
+  projectLoading: "正在加载会话…",
+  projectShowLess: "收起显示",
+  projectLoadMore: "展开更多",
+  projectShowMore: "展开更多",
+  projectNewSession: "在此项目新建会话",
+  projectActions: "项目操作",
+  projectActiveSessions: "显示会话",
+  projectArchivedSessions: "已归档会话",
+  projectNoSessions: "暂无会话",
+  projectRecentIncomplete: "部分项目读取失败，最近会话列表不完整。",
+  projectSessionSwitchHint: "执行此操作将切换到该项目",
   fileLivePreview: "实时预览",
   fileEditMarkdownBlock: "编辑 Markdown 块",
   fileToggleTask: "切换任务完成状态",
@@ -705,7 +717,6 @@ export const zh: Record<MessageKey, string> = {
   sidebarCreating: "正在创建…",
   sidebarExpand: "展开侧栏",
   sidebarCollapse: "收起侧栏",
-  sidebarSplitResize: "调整工作区与对话列表高度",
   sidebarHostOffline: "Host 离线",
   sidebarConnecting: "正在连接 Pi Host",
   sidebarResync: "正在与 Host 重新同步",

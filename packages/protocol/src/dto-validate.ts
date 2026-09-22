@@ -1628,6 +1628,15 @@ export function validateMethodResultShape(method: HostMethod, result: unknown): 
         result.removed === true
         ? null
         : "invalid attachment.remove result";
+    case "session.listForWorkspace":
+      return isPlainObject(result) &&
+        hasExactKeys(result, ["canonicalCwd", "items"]) &&
+        isString(result.canonicalCwd) &&
+        result.canonicalCwd.length > 0 &&
+        Array.isArray(result.items) &&
+        result.items.every(isSessionSummary)
+        ? null
+        : "invalid session.listForWorkspace result";
     case "session.list":
       return isPlainObject(result) &&
         hasExactKeys(result, ["workspaceId", "items"]) &&

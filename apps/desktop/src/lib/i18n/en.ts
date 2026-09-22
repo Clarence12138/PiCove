@@ -4,6 +4,18 @@
  * compile error. Interpolation uses `{name}` placeholders.
  */
 export const en = {
+  projectRetry: "Retry",
+  projectLoading: "Loading conversations…",
+  projectShowLess: "Show less",
+  projectLoadMore: "Show more",
+  projectShowMore: "Show all",
+  projectNewSession: "New conversation in this project",
+  projectActions: "Project actions",
+  projectActiveSessions: "Show conversations",
+  projectArchivedSessions: "Archived conversations",
+  projectNoSessions: "No conversations",
+  projectRecentIncomplete: "Some projects could not be read. Recent conversations are incomplete.",
+  projectSessionSwitchHint: "This action switches to this project",
   // Common
   fileLivePreview: "Live preview",
   fileEditMarkdownBlock: "Edit Markdown block",
@@ -731,7 +743,6 @@ export const en = {
   sidebarCreating: "Creating...",
   sidebarExpand: "Expand sidebar",
   sidebarCollapse: "Collapse sidebar",
-  sidebarSplitResize: "Resize workspaces and conversations",
   sidebarHostOffline: "Host offline",
   sidebarConnecting: "Connecting to Pi Host",
   sidebarResync: "Resynchronizing with Host",

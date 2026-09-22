@@ -156,3 +156,12 @@ Before requesting it, the desktop opens a bounded same-Host event buffer. It ins
 | session open | 180s (includes blocking extension startup UI) |
 | package mutation | Host: 10 min + 5s cancellation/reconcile; desktop: 10m15s |
 | shutdown | Host cleanup: 8s; Rust force-kill boundary: 10s |
+
+## Cross-workspace sidebar summaries
+
+`session.listForWorkspace` uses Host context and accepts `{ cwd: string }`. It
+returns `{ canonicalCwd: string, items: SessionSummary[] }`, including archived
+and started live conversations. It resolves existing project paths using Host
+canonicalization and reads Pi session storage without activating a workspace.
+Read errors are explicit. Opening or modifying those conversations continues to
+use the existing workspace-scoped methods after switching workspace.

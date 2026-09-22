@@ -1,5 +1,7 @@
 import {
   createHostError,
+  isHostErrorCode,
+  type HostError,
   stripAttachmentReferenceBlocks,
   toJsonValue,
   type JsonValue,
@@ -8,6 +10,7 @@ import type { MethodHandler } from "./server.js";
 import type { WorkspaceGraphFactory } from "./workspace-graph-factory.js";
 import { buildSessionUsageReport } from "./session-usage-report.js";
 import { searchSessions } from "./session-search.js";
+import { listWorkspaceSessions } from "./workspace-session-catalog.js";
 
 type SdkSessionTreeNode = {
   entry: unknown;
@@ -33,6 +36,28 @@ export function createSessionHandlers(
   factory: WorkspaceGraphFactory,
 ): Partial<Record<string, MethodHandler>> {
   return {
+    "session.listForWorkspace": async (ctx) => {
+      const stale = factory.checkIdentity(ctx.context, {});
+      if (stale) return { error: stale };
+      try {
+        return {
+          result: await listWorkspaceSessions(factory, (ctx.params as { cwd: string }).cwd),
+        };
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && isHostErrorCode(error.code)) {
+          return { error: error as HostError };
+        }
+        return {
+          error: createHostError(
+            "INTERNAL_ERROR",
+            error && typeof error === "object" && "message" in error
+              ? String(error.message)
+              : "Unable to list workspace sessions",
+          ),
+        };
+      }
+    },
+
     "session.list": async (ctx) => {
       const server = factory.getServer();
       if (!server) {

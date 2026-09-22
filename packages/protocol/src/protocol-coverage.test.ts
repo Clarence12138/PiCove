@@ -119,6 +119,7 @@ const VALID_PARAMS: Record<HostMethod, unknown> = {
   "attachment.get": { attachmentId: RUN_ID },
   "attachment.remove": { attachmentId: RUN_ID },
   "session.list": null,
+  "session.listForWorkspace": { cwd: "/p" },
   "session.create": {},
   "session.open": { sessionPath: "/s.jsonl" },
   "session.reload": null,
@@ -276,6 +277,7 @@ function invalidParams(method: HostMethod): unknown {
     case "model.list":
     case "package.reloadResources":
       return {}; // must be null
+    case "session.listForWorkspace":
     case "workspace.setCurrent":
       return { path: "x" }; // missing cwd
     case "workspace.searchFiles":

@@ -6,6 +6,7 @@ import {
   mergeHostIdentity,
   nullableSessionContext,
 } from "../bridge/host-context";
+import { requestSessionOpenWithRetry } from "../bridge/session-open-request";
 import { tCurrent } from "../i18n/use-t";
 import { useAppStore } from "../stores/app-store";
 
@@ -37,17 +38,35 @@ export function abortMethodForSession(session: {
   return "agent.abort";
 }
 
-export async function createNewSession(): Promise<boolean> {
+export async function createNewSession(
+  options: { shouldContinue?: () => boolean } = {},
+): Promise<boolean> {
   const state = useAppStore.getState();
   if (!state.host || !state.workspace?.servicesReady || createPending) return false;
   const generation = captureRequestGeneration(state.host);
   setCreatePending(true);
   try {
-    const response = await hostClient.request(
-      "session.create",
-      nullableSessionContext(state.host, state.workspace),
-      {},
+    const response = await requestSessionOpenWithRetry(
+      () =>
+        hostClient.request(
+          "session.create",
+          nullableSessionContext(state.host!, state.workspace!),
+          {},
+        ),
+      undefined,
+      () => {
+        const current = useAppStore.getState();
+        return (
+          !current.connecting &&
+          !current.rehydrating &&
+          !current.desynchronized &&
+          !current.hostFatal &&
+          isCurrentRequestGeneration(current.host, generation, { session: true }) &&
+          (options.shouldContinue?.() ?? true)
+        );
+      },
     );
+    if (!response) return false;
     if (!isCurrentRequestGeneration(useAppStore.getState().host, generation)) {
       return false;
     }

@@ -31,6 +31,7 @@ export const HOST_METHODS = [
   "attachment.get",
   "attachment.remove",
   "session.list",
+  "session.listForWorkspace",
   "session.create",
   "session.open",
   "session.reload",
@@ -159,6 +160,7 @@ export type HostOnlyMethod =
   | "provider.logout"
   | "provider.builtinModels"
   | "provider.setBuiltinModels"
+  | "session.listForWorkspace"
   | "session.searchAll"
   | "package.catalog"
   | "extensionUi.configure";
@@ -307,6 +309,7 @@ export const METHOD_CONTEXT_SCOPE: Record<HostMethod, MethodContextScope> = {
   "attachment.get": "activeSession",
   "attachment.remove": "activeSession",
   "session.list": "workspace",
+  "session.listForWorkspace": "host",
   "session.create": "nullableSession",
   "session.open": "nullableSession",
   "session.reload": "activeSession",

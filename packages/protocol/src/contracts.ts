@@ -100,6 +100,7 @@ export type HostContextMap = {
   "attachment.get": ActiveSessionContext;
   "attachment.remove": ActiveSessionContext;
   "session.list": WorkspaceContext;
+  "session.listForWorkspace": HostContext;
   "session.create": NullableSessionContext;
   "session.open": NullableSessionContext;
   "session.reload": ActiveSessionContext;
@@ -214,6 +215,7 @@ export type HostRequestParams = {
   "attachment.get": { attachmentId: string };
   "attachment.remove": { attachmentId: string };
   "session.list": null;
+  "session.listForWorkspace": { cwd: string };
   "session.create": { name?: string };
   "session.open": { sessionPath: string };
   "session.reload": null;
@@ -357,6 +359,7 @@ export type HostResultMap = {
   "attachment.get": AttachmentSnapshot;
   "attachment.remove": { attachmentId: string; removed: true };
   "session.list": { workspaceId: string; items: SessionSummary[] };
+  "session.listForWorkspace": { canonicalCwd: string; items: SessionSummary[] };
   "session.create": SessionSnapshot;
   "session.open": SessionSnapshot;
   "session.reload": SessionSnapshot;

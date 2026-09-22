@@ -6,13 +6,36 @@
 
 ## Session
 
-- Listed only for current workspace cwd (`session.list`). The list includes a
+- `session.list` remains scoped to the current workspace. The Host-scoped
+  `session.listForWorkspace({ cwd })` reads another workspace without activating
+  its services or creating a runtime, returning its canonical path and summaries.
+  Both lists include a
   Session once it has started (first message or a live run), even if the JSONL
   file is not on disk yet. A blank unused create stays off the list.
 - `session.open` accepts a live background Runtime in this workspace, or a path
   from `session.list`. Other paths are rejected (must switch workspace first).
 - Recent-session labels prefer the persisted name, then an 80-character first-user-message excerpt (whitespace normalized), then the localized untitled label. `session.list` carries optional `firstMessage` separately from `name`; this display fallback never renames historical sessions or calls a model. Opening a session preserves its catalog excerpt.
 - React owns a normalized, workspace-scoped Session Catalog. Page navigation does not clear it.
+- The sidebar renders independently collapsible project groups, followed by a
+  Recent conversations group that is collapsed on first use. Project rows only
+  expand; conversation selection switches workspace then opens the target. Each
+  project previews five unarchived conversations, pinned first; Recent previews
+  five conversations across added projects, ordered by activity and labelled
+  with their project. Project Show more reveals ten additional conversations
+  per click; collapsing a project resets its preview to five. Recent retains
+  Show all / Show less. Both share a read-only summary cache. Removed projects
+  are excluded from Recent.
+- Summary reads happen on expansion, focus, reconnect and relevant mutations;
+  live events update cached summaries, including collapsed projects. Failures
+  remain visible with retry; partially loaded Recent results are labelled
+  incomplete. No polling or duplicate durable session store is introduced.
+- Sidebar open/create actions and global search share serialized workspace
+  navigation. Later navigation supersedes pending earlier navigation; submitted
+  menu mutations retain their target. Title generation releases the navigation
+  queue after dispatch and only applies a still-current name response.
+- Project and Recent expansion preferences are local UI settings. Pin preferences
+  use canonical project paths, importing the current workspace's old preferences
+  when available. The former split-pane height is no longer used.
 - Active Pi snapshots project `running`, `queued`, `idle`, `error`, or `inactive` state into the Catalog.
 - Composer drafts are keyed by Session id, so switching pages or Sessions does not discard input.
 - Host exposes one foreground AgentSession plus retained background runtimes. A workspace may keep at most five live AgentSessions (the foreground plus up to four background runtimes). Opening or creating another new runtime returns `SESSION_LIMIT`.

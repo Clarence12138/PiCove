@@ -1509,3 +1509,28 @@ describe("ModelConfigHealth degraded state", () => {
     ).toMatchObject({ ok: false });
   });
 });
+
+describe("session.listForWorkspace", () => {
+  it("uses Host context and validates the catalog result", () => {
+    expect(METHOD_CONTEXT_SCOPE["session.listForWorkspace"]).toBe("host");
+    expect(
+      validateMethodContext("session.listForWorkspace", { expectedHostInstanceId: HOST_ID }).ok,
+    ).toBe(true);
+    expect(
+      validateSuccessResult("session.listForWorkspace", { canonicalCwd: "/project", items: [] }).ok,
+    ).toBe(true);
+    expect(
+      validateSuccessResult("session.listForWorkspace", {
+        canonicalCwd: "/project",
+        items: [{ sessionId: "bad" }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateSuccessResult("session.listForWorkspace", { canonicalCwd: "", items: [] }).ok,
+    ).toBe(false);
+    expect(
+      validateSuccessResult("session.listForWorkspace", { workspaceId: WORKSPACE_ID, items: [] })
+        .ok,
+    ).toBe(false);
+  });
+});

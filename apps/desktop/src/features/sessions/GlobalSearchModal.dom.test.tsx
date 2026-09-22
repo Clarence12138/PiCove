@@ -193,15 +193,18 @@ describe("GlobalSearchModal", () => {
   });
 
   it("opens a result in the current workspace without switching", async () => {
+    useAppStore.getState().setPage("settings");
     const onClose = vi.fn();
     const request = vi.spyOn(hostClient, "request").mockImplementation(((method: string) => {
       if (method === "session.searchAll") {
         return Promise.resolve(envelope(method, searchReport()));
       }
       if (method === "session.open") {
-        return Promise.resolve(
-          envelope(method, session({ sessionId: FOUND_SESSION_ID, revision: 1 })),
-        );
+        return Promise.resolve({
+          ...envelope(method, session({ sessionId: FOUND_SESSION_ID, revision: 4 })),
+          sessionId: FOUND_SESSION_ID,
+          sessionRevision: 4,
+        });
       }
       throw new Error(`Unexpected method: ${method}`);
     }) as never);
@@ -215,6 +218,7 @@ describe("GlobalSearchModal", () => {
     const methods = request.mock.calls.map((call) => call[0]);
     expect(methods).toContain("session.open");
     expect(methods).not.toContain("workspace.setCurrent");
+    expect(useAppStore.getState().page).toBe("chat");
   });
 
   it("switches workspace before handling a result from another project", async () => {
@@ -224,17 +228,19 @@ describe("GlobalSearchModal", () => {
         return Promise.resolve(envelope(method, searchReport()));
       }
       if (method === "workspace.setCurrent") {
-        return Promise.resolve(
-          envelope(method, {
+        return Promise.resolve({
+          ...envelope(method, {
             workspace: {
               id: OTHER_WORKSPACE_ID,
               cwd: "/proj/other",
               canonicalCwd: "/proj/other",
-              revision: 1,
+              revision: 2,
               servicesReady: true,
             },
           }),
-        );
+          workspaceId: OTHER_WORKSPACE_ID,
+          workspaceRevision: 2,
+        });
       }
       throw new Error(`Unexpected method: ${method}`);
     }) as never);
@@ -255,5 +261,63 @@ describe("GlobalSearchModal", () => {
     const methods = request.mock.calls.map((call) => call[0]);
     expect(methods).not.toContain("session.open");
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+  it("opens a cross-project result using the completed switch identity", async () => {
+    const onClose = vi.fn();
+    const nextWorkspace = {
+      ...workspace(),
+      id: OTHER_WORKSPACE_ID,
+      cwd: "/proj/other",
+      canonicalCwd: "/proj/other",
+      revision: 2,
+    };
+    const request = vi.spyOn(hostClient, "request").mockImplementation(((method: string) => {
+      if (method === "session.searchAll") {
+        const report = searchReport();
+        return Promise.resolve(
+          envelope(method, {
+            ...report,
+            items: report.items.map((item) => ({ ...item, archived: false })),
+          }),
+        );
+      }
+      if (method === "workspace.setCurrent") {
+        return Promise.resolve({
+          ...envelope(method, { workspace: nextWorkspace }),
+          workspaceId: OTHER_WORKSPACE_ID,
+          workspaceRevision: 2,
+          sessionId: null,
+          sessionRevision: 4,
+        });
+      }
+      if (method === "session.open") {
+        return Promise.resolve({
+          ...envelope(
+            method,
+            session({ sessionId: OTHER_SESSION_ID, cwd: "/proj/other", revision: 5 }),
+          ),
+          workspaceId: OTHER_WORKSPACE_ID,
+          workspaceRevision: 2,
+          sessionId: OTHER_SESSION_ID,
+          sessionRevision: 5,
+        });
+      }
+      throw new Error(`Unexpected method: ${method}`);
+    }) as never);
+    render(<GlobalSearchModal onClose={onClose} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Search conversations in every project…"), "login");
+    await user.click(await screen.findByTitle("New session"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    const opened = request.mock.calls.find((call) => call[0] === "session.open");
+    expect(opened?.[1]).toEqual({
+      expectedHostInstanceId: HOST_ID,
+      expectedWorkspaceId: OTHER_WORKSPACE_ID,
+      expectedWorkspaceRevision: 2,
+      expectedSessionId: null,
+      expectedSessionRevision: 4,
+    });
+    expect(useAppStore.getState().host?.sessionId).toBe(OTHER_SESSION_ID);
+    expect(useAppStore.getState().workspace?.canonicalCwd).toBe("/proj/other");
   });
 });
