@@ -52,6 +52,15 @@ Never applied in PiDeck (writing them changes nothing):
   `markdown.codeBlockIndent`, `externalEditor`, `showCacheMissNotices`,
   `hideThinkingBlock`, `enableSkillCommands`
 
+## Builtin account model selection
+
+In Builtin account login, model checkboxes and Select all / Select none edit a
+local draft. Save applies the selection through `provider.setBuiltinModels`;
+Cancel restores the last saved selection. An enabled provider still requires
+at least one selected model. Failed saves show an error and retain the draft
+for retry. Collapsing the panel, switching providers, or closing the page
+discards unsaved selections. This does not change Pi's `enabledModels` setting.
+
 ## Caveat: a broken file silently suppresses saves
 
 If the JSON is malformed, the SDK loads defaults, records a load error

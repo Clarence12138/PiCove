@@ -480,7 +480,11 @@ export const en = {
   providersLoginDone: "Signed in",
   providersLoginFailed: "Login failed",
   providersLoginModels: "Choose models",
-  providersLoginModelsCount: "{enabled} of {total} models enabled",
+  providersLoginModelsCount: "{enabled} of {total} models selected",
+  providersLoginModelsUnsaved: "Unsaved changes",
+  providersLoginModelsRequired: "Select at least one model before saving",
+  providersLoginModelsDraftHint:
+    "Save your selection when ready. Collapsing this panel, switching providers, or closing this page discards unsaved changes.",
   providersLoginModelsEmpty: "No models available yet — sign in first, then refresh.",
   notifProviderModelsFailed: "Could not update the Provider model list",
   notifProviderLoginFailed: "Could not start the Provider login",

@@ -8,7 +8,6 @@ import {
   LogIn,
   LogOut,
   RefreshCw,
-  Search,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { hostContext } from "../../lib/bridge/host-context";
 import { useAppStore } from "../../lib/stores/app-store";
 import { useT } from "../../lib/i18n/use-t";
 import { useImeComposition } from "../../lib/use-ime-composition";
+import { BuiltinModelSelection } from "./BuiltinModelSelection";
 import { Switch } from "../../components/Switch";
 import { primaryButton, secondaryButton } from "../../components/Dialog";
 
@@ -45,10 +45,8 @@ export function ProviderLoginPage({ onClose }: { onClose: () => void }) {
   const [modelPanel, setModelPanel] = useState<{
     providerId: string;
     loading: boolean;
-    saving: boolean;
     models: BuiltinProviderModelChoice[];
   } | null>(null);
-  const [modelSearch, setModelSearch] = useState("");
   const requestSeq = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -134,8 +132,7 @@ export function ProviderLoginPage({ onClose }: { onClose: () => void }) {
   async function loadModelPanel(providerId: string) {
     const currentHost = useAppStore.getState().host;
     if (!currentHost) return;
-    setModelSearch("");
-    setModelPanel({ providerId, loading: true, saving: false, models: [] });
+    setModelPanel({ providerId, loading: true, models: [] });
     const res = await hostClient.request("provider.builtinModels", hostContext(currentHost), {
       providerId,
     });
@@ -151,26 +148,25 @@ export function ProviderLoginPage({ onClose }: { onClose: () => void }) {
 
   async function saveModelSelection(providerId: string, models: BuiltinProviderModelChoice[]) {
     const currentHost = useAppStore.getState().host;
-    if (!currentHost) return;
-    // Optimistic render; the host result (or a reload on failure) reconciles.
-    setModelPanel((current) =>
-      current?.providerId === providerId ? { ...current, saving: true, models } : current,
-    );
-    const res = await hostClient.request("provider.setBuiltinModels", hostContext(currentHost), {
-      providerId,
-      modelIds: models.filter((model) => model.enabled).map((model) => model.id),
-    });
-    if (!res.ok) {
-      pushNotification(res.error?.message ?? t("notifProviderModelsFailed"), "error");
-      await loadModelPanel(providerId);
-      return;
+    if (!currentHost) {
+      pushNotification(t("notifProviderModelsFailed"), "error");
+      return null;
     }
-    setModelPanel((current) =>
-      current?.providerId === providerId
-        ? { ...current, saving: false, models: res.result.models }
-        : current,
-    );
-    refreshProviderConfig();
+    try {
+      const res = await hostClient.request("provider.setBuiltinModels", hostContext(currentHost), {
+        providerId,
+        modelIds: models.filter((model) => model.enabled).map((model) => model.id),
+      });
+      if (!res.ok) {
+        pushNotification(res.error?.message ?? t("notifProviderModelsFailed"), "error");
+        return null;
+      }
+      refreshProviderConfig();
+      return res.result.models;
+    } catch (error) {
+      pushNotification(error instanceof Error ? error.message : String(error), "error");
+      return null;
+    }
   }
 
   const visible = showAll ? providers : providers.filter(isFeaturedLoginProvider);
@@ -341,12 +337,10 @@ export function ProviderLoginPage({ onClose }: { onClose: () => void }) {
                       ) : modelPanel.models.length === 0 ? (
                         <p className="text-xs text-muted">{t("providersLoginModelsEmpty")}</p>
                       ) : (
-                        <ModelChecklist
+                        <BuiltinModelSelection
                           models={modelPanel.models}
-                          saving={modelPanel.saving}
-                          search={modelSearch}
-                          onSearch={setModelSearch}
-                          onChange={(next) => void saveModelSelection(provider.providerId, next)}
+                          providerEnabled={provider.enabled}
+                          onSave={(next) => saveModelSelection(provider.providerId, next)}
                         />
                       )}
                     </div>
@@ -366,91 +360,6 @@ export function ProviderLoginPage({ onClose }: { onClose: () => void }) {
               ? t("providersLoginShowFewer")
               : t("providersLoginShowAll", { count: hiddenCount })}
           </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ModelChecklist({
-  models,
-  saving,
-  search,
-  onSearch,
-  onChange,
-}: {
-  models: BuiltinProviderModelChoice[];
-  saving: boolean;
-  search: string;
-  onSearch: (value: string) => void;
-  onChange: (next: BuiltinProviderModelChoice[]) => void;
-}) {
-  const t = useT();
-  const enabledCount = models.filter((model) => model.enabled).length;
-  const query = search.trim().toLowerCase();
-  const filtered = query
-    ? models.filter((model) => `${model.name} ${model.id}`.toLowerCase().includes(query))
-    : models;
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-muted">
-          {t("providersLoginModelsCount", { enabled: enabledCount, total: models.length })}
-        </span>
-        <button
-          type="button"
-          className="text-[11px] text-muted hover:text-foreground disabled:opacity-40"
-          disabled={saving}
-          onClick={() => {
-            const enable = models.some((model) => !model.enabled);
-            onChange(models.map((model) => ({ ...model, enabled: enable })));
-          }}
-        >
-          {enabledCount === models.length ? t("providersSelectNone") : t("providersSelectAll")}
-        </button>
-      </div>
-      {models.length > 8 && (
-        <div className="relative">
-          <Search className="absolute left-2 top-2 text-muted" size={13} />
-          <input
-            className="h-7 w-full rounded-md border border-border bg-surface pl-7 pr-2 text-xs outline-none focus:border-focus"
-            placeholder={t("providersSearchModels")}
-            value={search}
-            onChange={(event) => onSearch(event.target.value)}
-          />
-        </div>
-      )}
-      <div className="max-h-64 overflow-auto rounded-md border border-border bg-surface">
-        {filtered.length === 0 ? (
-          <p className="p-3 text-center text-xs text-muted">{t("providersModelsEmpty")}</p>
-        ) : (
-          filtered.map((model) => (
-            <label
-              key={model.id}
-              className="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 last:border-b-0 hover:bg-surface-overlay"
-            >
-              <input
-                type="checkbox"
-                checked={model.enabled}
-                disabled={saving}
-                onChange={(event) =>
-                  onChange(
-                    models.map((item) =>
-                      item.id === model.id ? { ...item, enabled: event.target.checked } : item,
-                    ),
-                  )
-                }
-              />
-              <span className="min-w-0 flex-1 truncate text-xs" title={model.id}>
-                {model.name}
-              </span>
-              {model.name !== model.id && (
-                <span className="hidden truncate font-mono text-[10px] text-muted sm:block">
-                  {model.id}
-                </span>
-              )}
-            </label>
-          ))
         )}
       </div>
     </div>
